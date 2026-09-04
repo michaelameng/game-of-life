@@ -36,8 +36,7 @@ generation when deciding its next state.
 ```text
 index.html                 Interactive site published with GitHub Pages
 src/simulation/life.py     Python model and B3/S26 rule implementation
-src/simulation/viewer.py   Optional Python HTML-viewer generator
-src/simulation/__main__.py Command-line entry point for that generator
+src/simulation/__init__.py Package exports for the Python rule model
 ```
 
 ## GitHub Pages
