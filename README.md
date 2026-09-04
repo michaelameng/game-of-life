@@ -9,19 +9,26 @@ outer-totalistic **B3/S26** rule. A dead cell becomes alive with exactly three
 live neighbours; a live cell remains alive with exactly two or six neighbours.
 Cells beyond the grid edge are considered dead.
 
-## Run it
+## View the simulation
 
-From the project root, generate and open the standalone visual simulation:
+The interactive, standalone page is already included at
+[`docs/index.html`](docs/index.html). Open that file directly in a browser; no
+Python command or local server is needed.
 
-```bash
-PYTHONPATH=src python3 -m simulation --open
-```
+### Publish with GitHub Pages
 
-This creates `game_of_life.html` in the project root. You can also open that
-file directly in any browser. The page has Step, Play/Pause, Clear, and Reset
-controls, and every cell can be toggled by clicking it.
+In the GitHub repository, open **Settings → Pages**. Under **Build and
+deployment**, select **Deploy from a branch**, choose `main`, and select the
+`/docs` folder. Save the setting. GitHub will then publish `docs/index.html`
+as the project website.
 
-To choose another output location:
+The page has Step, Play/Pause, Clear, and Reset controls, and every cell can be
+toggled by clicking it.
+
+## Optional Python generator
+
+The Python files remain as a reference implementation of the same rule and can
+regenerate an HTML viewer if you make changes to the Python starting pattern:
 
 ```bash
 PYTHONPATH=src python3 -m simulation --output path/to/viewer.html

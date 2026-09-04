@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Life-like simulation — B3/S26</title>
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, sans-serif; }
+    body { min-height: 100vh; margin: 0; display: grid; place-items: center; background: #101827; color: #e8eef9; }
+    main { width: min(92vw, 620px); padding: 2rem; text-align: center; }
+    h1 { margin: 0; font-size: 1.55rem; }
+    p { color: #adbad0; }
+    #grid { display: grid; grid-template-columns: repeat(9, 1fr); gap: 4px; margin: 1.5rem auto; padding: 4px; background: #34425c; border-radius: 8px; }
+    .cell { aspect-ratio: 1; border: 0; border-radius: 3px; cursor: pointer; background: #1d2a3e; }
+    .cell.alive { background: #62d9a4; box-shadow: 0 0 12px #62d9a477; }
+    button { margin: .25rem; padding: .6rem 1rem; border: 0; border-radius: 6px; background: #3182ce; color: white; font: inherit; cursor: pointer; }
+    button:hover { background: #4299e1; }
+    #status { min-height: 1.5em; font-variant-numeric: tabular-nums; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>9 × 9 Life-like simulation</h1>
+    <p>Rule <strong>B3/S26</strong>: a dead cell is born with 3 neighbours; a live cell survives with 2 or 6. Click cells to edit.</p>
+    <div id="grid" role="grid" aria-label="Cellular automaton grid"></div>
+    <div><button id="step">Step</button><button id="play">Play</button><button id="clear">Clear</button><button id="reset">Reset</button></div>
+    <p id="status"></p>
+  </main>
+  <script>
+    // ``cells`` holds the current generation as rows of 0 (dead) and 1 (alive).
+    const width = 9, height = 9;
+    const original = [[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,1,1,1,0,0,0,0],[0,0,1,0,1,0,0,0,0],[0,0,0,1,0,1,1,0,0],[0,0,0,0,0,1,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0]];
+    // Copy each row: Reset must not share mutable rows with the editable grid.
+    let cells = original.map(row => [...row]), generation = 0, timer = null;
+    const grid = document.querySelector('#grid'), status = document.querySelector('#status');
+    function neighbours(x, y) {
+      let total = 0;
+      // Visit the 3 by 3 square around this cell, excluding the cell itself.
+      // Optional chaining makes rows beyond an edge count as zero/dead.
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        if (dx || dy) { const row = cells[y + dy]; total += row?.[x + dx] || 0; }
+      }
+      return total;
+    }
+    function draw() {
+      // Rebuild the 81 buttons so their colour and accessible label match the grid.
+      grid.replaceChildren(...cells.flatMap((row, y) => row.map((alive, x) => {
+        const cell = document.createElement('button');
+        cell.className = `cell${alive ? ' alive' : ''}`;
+        cell.setAttribute('aria-label', `Column ${x + 1}, row ${y + 1}: ${alive ? 'alive' : 'dead'}`);
+        cell.onclick = () => { cells[y][x] = cells[y][x] ? 0 : 1; stop(); draw(); };
+        return cell;
+      })));
+      status.textContent = `Generation ${generation} · ${cells.flat().reduce((a, b) => a + b, 0)} living cells`;
+    }
+    function step() {
+      // Map creates a new generation, so every decision reads the old grid.
+      cells = cells.map((row, y) => row.map((alive, x) => { const n = neighbours(x, y); return alive ? +(n === 2 || n === 6) : +(n === 3); }));
+      generation++; draw();
+    }
+    function stop() { clearInterval(timer); timer = null; document.querySelector('#play').textContent = 'Play'; }
+    document.querySelector('#step').onclick = step;
+    document.querySelector('#play').onclick = () => { if (timer) return stop(); timer = setInterval(step, 450); document.querySelector('#play').textContent = 'Pause'; };
+    document.querySelector('#clear').onclick = () => { stop(); cells = Array.from({length: height}, () => Array(width).fill(0)); generation = 0; draw(); };
+    document.querySelector('#reset').onclick = () => { stop(); cells = original.map(row => [...row]); generation = 0; draw(); };
+    draw();
+  </script>
+</body>
+</html>
