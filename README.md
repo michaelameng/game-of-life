@@ -1,37 +1,47 @@
-# Initial Emergent Complexity Assignment
+# B3/S26 Cellular Automaton
 
-Initial Emergent Complexity assignment looking into (i) _Game of Life_-like simulations, (ii) **outer-totalistic rules**, and (iii) \[the additional option\].
+A small, interactive 9 × 9 cellular automaton built for an Emergent
+Complexity assignment. It uses the outer-totalistic **B3/S26** rule: a variant
+of Conway's Game of Life.
 
-## Overview
+## Try it
 
-This project implements a 9 × 9, two-dimensional cellular automaton using the
-outer-totalistic **B3/S26** rule. A dead cell becomes alive with exactly three
-live neighbours; a live cell remains alive with exactly two or six neighbours.
-Cells beyond the grid edge are considered dead.
+Open the interactive page at [michaelameng.github.io/ecs-initial](https://michaelameng.github.io/ecs-initial/), or open
+[`index.html`](index.html) directly in a browser after cloning this repository.
+No installation, Python command, or local server is required to use the page.
 
-## View the simulation
+The viewer lets you:
 
-The interactive, standalone page is already included at
-[`index.html`](index.html). Open that file directly in a browser; no
-Python command or local server is needed.
+- Click a cell to make it alive or dead.
+- Advance one generation with **Step**.
+- Run or pause the simulation with **Play**.
+- Start over with **Clear** or restore the example with **Reset**.
 
-### Publish with GitHub Pages
+## The rule: B3/S26
 
-In the GitHub repository, open **Settings → Pages**. Under **Build and
-deployment**, select **Deploy from a branch**, choose `main`, and select
-`/(root)`. Save the setting. GitHub will then publish `index.html`
-as the project website.
+Every cell checks its eight adjacent positions: horizontal, vertical, and
+diagonal. Cells beyond the edge of the 9 × 9 board are treated as dead.
 
-The page has Step, Play/Pause, Clear, and Reset controls, and every cell can be
-toggled by clicking it.
+| Cell state now | Live neighbours | Cell state next generation |
+| --- | --- | --- |
+| Dead | Exactly 3 | Alive — **B3** (birth) |
+| Alive | Exactly 2 or 6 | Alive — **S26** (survival) |
+| Any | Any other count | Dead |
 
-## Optional Python generator
+Each generation is calculated simultaneously: a cell always uses the previous
+generation when deciding its next state.
 
-The Python files remain as a reference implementation of the same rule and can
-regenerate an HTML viewer if you make changes to the Python starting pattern:
+## Project structure
 
-```bash
-PYTHONPATH=src python3 -m simulation --output path/to/viewer.html
+```text
+index.html                 Interactive site published with GitHub Pages
+src/simulation/life.py     Python model and B3/S26 rule implementation
+src/simulation/viewer.py   Optional Python HTML-viewer generator
+src/simulation/__main__.py Command-line entry point for that generator
 ```
 
-## Structure
+## GitHub Pages
+
+This repository is configured for a project page from the `main` branch root.
+In GitHub, use **Settings → Pages**, choose **Deploy from a branch**, then
+select `main` and `/(root)`. GitHub serves `index.html` as the site entry point.
