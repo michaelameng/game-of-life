@@ -1,4 +1,4 @@
-"""Simulation rules for a 9 by 9 outer-totalistic cellular automaton."""
+"""Simulation rules for a 27 by 27 outer-totalistic cellular automaton."""
 
 from __future__ import annotations
 
@@ -6,8 +6,8 @@ from dataclasses import dataclass
 from typing import Iterable
 
 # Coordinates use (column, row), while the nested list is accessed as [row][column].
-WIDTH = 9
-HEIGHT = 9
+WIDTH = 27
+HEIGHT = 27
 RULE = "B3/S26"
 # Keep the rule in sets so ``neighbours in ...`` reads like the rule definition.
 _BIRTH_COUNTS = frozenset({3})
@@ -16,7 +16,7 @@ _SURVIVAL_COUNTS = frozenset({2, 6})
 
 @dataclass(frozen=True)
 class LifeGrid:
-    """An immutable 9 by 9 grid whose cells are either alive or dead."""
+    """An immutable 27 by 27 grid whose cells are either alive or dead."""
 
     cells: tuple[tuple[bool, ...], ...]
 

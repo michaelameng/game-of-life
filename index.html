@@ -3,38 +3,92 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Life-like simulation — B3/S26</title>
+  <title>Game of Life Simulation</title>
   <style>
     :root { color-scheme: dark; font-family: system-ui, sans-serif; }
     body { min-height: 100vh; margin: 0; display: grid; place-items: center; background: #101827; color: #e8eef9; }
-    main { width: min(92vw, 620px); padding: 2rem; text-align: center; }
+    main { width: min(92vw, 720px); padding: 2rem; text-align: center; }
     h1 { margin: 0; font-size: 1.55rem; }
     p { color: #adbad0; }
-    #grid { display: grid; grid-template-columns: repeat(9, 1fr); gap: 4px; margin: 1.5rem auto; padding: 4px; background: #34425c; border-radius: 8px; }
-    .cell { aspect-ratio: 1; border: 0; border-radius: 3px; cursor: pointer; background: #1d2a3e; }
-    .cell.alive { background: #62d9a4; box-shadow: 0 0 12px #62d9a477; }
+    #rule-picker { display: flex; flex-direction: column; gap: .4rem; align-items: center; margin: 1rem auto; padding: .75rem 1rem; background: #182338; border-radius: 8px; }
+    .rule-row { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; justify-content: center; }
+    .rule-row span.label { min-width: 2.5rem; text-align: right; color: #e8eef9; font-weight: 600; }
+    .rule-row label { display: inline-flex; align-items: center; gap: .2rem; font-size: .85rem; color: #adbad0; }
+    #rule-summary { font-variant-numeric: tabular-nums; color: #62d9a4; font-weight: 600; }
+    #grid { display: grid; grid-template-columns: repeat(27, 1fr); gap: 1px; margin: 1.5rem auto; padding: 1px; background: #34425c; border-radius: 8px; }
+    .cell { aspect-ratio: 1; min-width: 0; min-height: 0; padding: 0; border: 0; border-radius: 2px; cursor: pointer; background: #1d2a3e; }
+    .cell.alive { background: #62d9a4; box-shadow: 0 0 6px #62d9a477; }
     button { margin: .25rem; padding: .6rem 1rem; border: 0; border-radius: 6px; background: #3182ce; color: white; font: inherit; cursor: pointer; }
     button:hover { background: #4299e1; }
+    #controls button { font-size: 1.2rem; line-height: 1; padding: .6rem .9rem; }
     #status { min-height: 1.5em; font-variant-numeric: tabular-nums; }
   </style>
 </head>
 <body>
   <!-- GitHub Pages serves this root index file as the project-page entry point. -->
   <main>
-    <h1>9 × 9 Life-like simulation</h1>
-    <p>Rule <strong>B3/S26</strong>: a dead cell is born with 3 neighbours; a live cell survives with 2 or 6. Click cells to edit.</p>
+    <h1>Game of Life Simulation</h1>
+    <p>Click cells to edit. Choose which live-neighbour counts cause birth (B) and survival (S) below.</p>
+    <div id="rule-picker">
+      <div class="rule-row" id="birth-row"><span class="label">Birth</span></div>
+      <div class="rule-row" id="survival-row"><span class="label">Survival</span></div>
+      <div id="rule-summary"></div>
+    </div>
     <div id="grid" role="grid" aria-label="Cellular automaton grid"></div>
-    <div><button id="step">Step</button><button id="play">Play</button><button id="clear">Clear</button><button id="reset">Reset</button></div>
+    <div id="controls">
+      <button id="step-back" title="Step back" aria-label="Step back">⏪</button>
+      <button id="play" title="Play" aria-label="Play">▶️</button>
+      <button id="step-forward" title="Step forward" aria-label="Step forward">⏩</button>
+      <button id="random" title="Randomize" aria-label="Randomize">🎲</button>
+      <button id="clear" title="Clear" aria-label="Clear">🗑️</button>
+      <button id="reset" title="Reset" aria-label="Reset">↺</button>
+    </div>
     <p id="status"></p>
   </main>
   <script>
     // ``cells`` holds the current generation as rows of 0 (dead) and 1 (alive).
-    const width = 9, height = 9;
-    const original = [[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,1,1,1,0,0,0,0],[0,0,1,0,1,0,0,0,0],[0,0,0,1,0,1,1,0,0],[0,0,0,0,0,1,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0]];
-    // Copy each row: Reset must not share mutable rows with the editable grid.
-    let cells = original.map(row => [...row]), generation = 0, timer = null;
+    const width = 27, height = 27;
+    // Live-cell coordinates as (column, row), matching src/simulation/life.py's DEFAULT_GRID.
+    const initialAlive = [[2,2],[3,2],[4,2],[2,3],[4,3],[3,4],[5,4],[6,4],[5,5]];
+    function buildGrid(aliveCells) {
+      const rows = Array.from({length: height}, () => Array(width).fill(0));
+      for (const [x, y] of aliveCells) rows[y][x] = 1;
+      return rows;
+    }
+    const original = buildGrid(initialAlive);
+    const blank = () => Array.from({length: height}, () => Array(width).fill(0));
+    let birthSet = new Set([3]), survivalSet = new Set([2, 6]);
+    // History is a pointer-based undo/redo stack: editing while stepped back
+    // discards the states ahead of the pointer, since they no longer apply.
+    // The board starts blank; Reset restores the example pattern instead.
+    let history = [blank()], genIndex = 0, timer = null;
+    let cells = history[0].map(row => [...row]);
     const grid = document.querySelector('#grid'), status = document.querySelector('#status');
-    function neighbours(x, y) {
+    const ruleSummary = document.querySelector('#rule-summary');
+
+    function buildRuleCheckboxes(rowId, set, prefix) {
+      const row = document.querySelector(rowId);
+      for (let n = 0; n <= 8; n++) {
+        const label = document.createElement('label');
+        const box = document.createElement('input');
+        box.type = 'checkbox';
+        box.checked = set.has(n);
+        box.id = `${prefix}-${n}`;
+        box.onchange = () => { box.checked ? set.add(n) : set.delete(n); updateRuleSummary(); };
+        label.append(box, document.createTextNode(String(n)));
+        row.appendChild(label);
+      }
+    }
+    function updateRuleSummary() {
+      const b = [...birthSet].sort((a, b) => a - b).join('');
+      const s = [...survivalSet].sort((a, b) => a - b).join('');
+      ruleSummary.textContent = `Current rule: B${b}/S${s}`;
+    }
+    buildRuleCheckboxes('#birth-row', birthSet, 'birth');
+    buildRuleCheckboxes('#survival-row', survivalSet, 'survival');
+    updateRuleSummary();
+
+    function neighbours(cells, x, y) {
       let total = 0;
       // Visit the 3 by 3 square around this cell, excluding the cell itself.
       // Optional chaining makes rows beyond an edge count as zero/dead.
@@ -43,27 +97,75 @@
       }
       return total;
     }
+    function nextGeneration(current) {
+      return current.map((row, y) => row.map((alive, x) => {
+        const n = neighbours(current, x, y);
+        return alive ? +survivalSet.has(n) : +birthSet.has(n);
+      }));
+    }
     function draw() {
-      // Rebuild the 81 buttons so their colour and accessible label match the grid.
+      // Rebuild the cells so their colour and accessible label match the grid.
       grid.replaceChildren(...cells.flatMap((row, y) => row.map((alive, x) => {
         const cell = document.createElement('button');
         cell.className = `cell${alive ? ' alive' : ''}`;
         cell.setAttribute('aria-label', `Column ${x + 1}, row ${y + 1}: ${alive ? 'alive' : 'dead'}`);
-        cell.onclick = () => { cells[y][x] = cells[y][x] ? 0 : 1; stop(); draw(); };
+        cell.onclick = () => {
+          cells[y][x] = cells[y][x] ? 0 : 1;
+          history[genIndex] = cells.map(row => [...row]);
+          history.length = genIndex + 1; // editing invalidates any redo states
+          stop(); draw();
+        };
         return cell;
       })));
-      status.textContent = `Generation ${generation} · ${cells.flat().reduce((a, b) => a + b, 0)} living cells`;
+      status.textContent = `step: ${genIndex} · living cells: ${cells.flat().reduce((a, b) => a + b, 0)}`;
     }
-    function step() {
-      // Map creates a new generation, so every decision reads the old grid.
-      cells = cells.map((row, y) => row.map((alive, x) => { const n = neighbours(x, y); return alive ? +(n === 2 || n === 6) : +(n === 3); }));
-      generation++; draw();
+    function stepForward() {
+      if (genIndex + 1 < history.length) {
+        genIndex++;
+      } else {
+        history.push(nextGeneration(cells));
+        genIndex++;
+      }
+      cells = history[genIndex].map(row => [...row]);
+      draw();
     }
-    function stop() { clearInterval(timer); timer = null; document.querySelector('#play').textContent = 'Play'; }
-    document.querySelector('#step').onclick = step;
-    document.querySelector('#play').onclick = () => { if (timer) return stop(); timer = setInterval(step, 450); document.querySelector('#play').textContent = 'Pause'; };
-    document.querySelector('#clear').onclick = () => { stop(); cells = Array.from({length: height}, () => Array(width).fill(0)); generation = 0; draw(); };
-    document.querySelector('#reset').onclick = () => { stop(); cells = original.map(row => [...row]); generation = 0; draw(); };
+    function stepBack() {
+      if (genIndex === 0) return;
+      genIndex--;
+      cells = history[genIndex].map(row => [...row]);
+      draw();
+    }
+    const playButton = document.querySelector('#play');
+    function stop() {
+      clearInterval(timer); timer = null;
+      playButton.textContent = '▶️'; playButton.title = 'Play'; playButton.setAttribute('aria-label', 'Play');
+    }
+    document.querySelector('#step-forward').onclick = stepForward;
+    document.querySelector('#step-back').onclick = stepBack;
+    playButton.onclick = () => {
+      if (timer) return stop();
+      timer = setInterval(stepForward, 450);
+      playButton.textContent = '⏸️'; playButton.title = 'Pause'; playButton.setAttribute('aria-label', 'Pause');
+    };
+    document.querySelector('#random').onclick = () => {
+      stop();
+      // Roughly a quarter of the board comes alive, a reasonable starting density for B3/S26-style rules.
+      cells = blank().map(row => row.map(() => Math.random() < 0.25 ? 1 : 0));
+      history = [cells.map(row => [...row])]; genIndex = 0;
+      draw();
+    };
+    document.querySelector('#clear').onclick = () => {
+      stop();
+      cells = blank();
+      history = [cells.map(row => [...row])]; genIndex = 0;
+      draw();
+    };
+    document.querySelector('#reset').onclick = () => {
+      stop();
+      cells = original.map(row => [...row]);
+      history = [cells.map(row => [...row])]; genIndex = 0;
+      draw();
+    };
     draw();
   </script>
 </body>
