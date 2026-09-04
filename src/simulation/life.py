@@ -50,17 +50,24 @@ class LifeGrid:
             if (neighbour_column, neighbour_row) != (column, row)
         )
 
-    def step(self) -> "LifeGrid":
-        """Advance one generation using the B3/S26 rule."""
+    def step(
+        self,
+        birth_counts: frozenset[int] = _BIRTH_COUNTS,
+        survival_counts: frozenset[int] = _SURVIVAL_COUNTS,
+    ) -> "LifeGrid":
+        """Advance one generation.
+
+        Defaults to the B3/S26 rule, but a caller (such as the local server's
+        interactive rule picker) can pass different neighbour-count sets to
+        play a different outer-totalistic variant without editing this file.
+        """
         next_alive = []
         for row in range(HEIGHT):
             for column in range(WIDTH):
                 neighbours = self.living_neighbours(column, row)
                 alive = self.cells[row][column]
-                # B3: dead cells are born with 3 neighbours.
-                # S26: live cells survive with 2 or 6 neighbours.
-                if (not alive and neighbours in _BIRTH_COUNTS) or (
-                    alive and neighbours in _SURVIVAL_COUNTS
+                if (not alive and neighbours in birth_counts) or (
+                    alive and neighbours in survival_counts
                 ):
                     next_alive.append((column, row))
         # Build a new grid only after every decision used the old grid. This is

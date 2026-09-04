@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Game of Life Simulation (Python server)</title>
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, sans-serif; }
+    body { min-height: 100vh; margin: 0; display: grid; place-items: center; background: #101827; color: #e8eef9; }
+    main { width: min(92vw, 720px); padding: 2rem; text-align: center; }
+    h1 { margin: 0; font-size: 1.55rem; }
+    p { color: #adbad0; }
+    #rule-picker { display: flex; flex-direction: column; gap: .4rem; align-items: center; margin: 1rem auto; padding: .75rem 1rem; background: #182338; border-radius: 8px; }
+    .rule-row { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; justify-content: center; }
+    .rule-row span.label { min-width: 2.5rem; text-align: right; color: #e8eef9; font-weight: 600; }
+    .rule-row label { display: inline-flex; align-items: center; gap: .2rem; font-size: .85rem; color: #adbad0; }
+    #rule-summary { font-variant-numeric: tabular-nums; color: #62d9a4; font-weight: 600; }
+    #grid { display: grid; grid-template-columns: repeat(27, 1fr); gap: 0; margin: 1.5rem auto; padding: 0; background: #1d2a3e; border-radius: 8px; overflow: hidden; }
+    .cell { aspect-ratio: 1; min-width: 0; min-height: 0; padding: 0; border: 0; border-radius: 0; cursor: pointer; background: #1d2a3e; box-shadow: inset 0 0 0 1px #4a5f82; }
+    .cell.alive { background: #62d9a4; box-shadow: inset 0 0 0 1px #4a5f82, 0 0 6px #62d9a477; }
+    button { margin: .25rem; padding: .6rem 1rem; border: 0; border-radius: 6px; background: #3182ce; color: white; font: inherit; cursor: pointer; }
+    button:hover { background: #4299e1; }
+    button:disabled { opacity: .5; cursor: default; }
+    #controls button { display: inline-flex; align-items: center; justify-content: center; padding: .6rem; }
+    #controls button svg { width: 1.15rem; height: 1.15rem; display: block; }
+    #status { min-height: 1.5em; font-variant-numeric: tabular-nums; }
+    #server-note { font-size: .8rem; color: #6c7f9c; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Game of Life Simulation</h1>
+    <p id="server-note">Served locally by <code>src/simulation/server.py</code> &mdash; every generation is computed by <code>LifeGrid</code> in Python.</p>
+    <p>Click cells to edit. Choose which live-neighbour counts cause birth (B) and survival (S) below.</p>
+    <div id="rule-picker">
+      <div class="rule-row" id="birth-row"><span class="label">Birth</span></div>
+      <div class="rule-row" id="survival-row"><span class="label">Survival</span></div>
+      <div id="rule-summary"></div>
+    </div>
+    <div id="grid" role="grid" aria-label="Cellular automaton grid"></div>
+    <div id="controls">
+      <button id="step-back" title="Step back" aria-label="Step back">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5"/></svg>
+      </button>
+      <button id="play" title="Play" aria-label="Play">
+        <svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+      </button>
+      <button id="step-forward" title="Step forward" aria-label="Step forward">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
+      </button>
+      <button id="random" title="Randomize" aria-label="Randomize">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.2" fill="currentColor" stroke="none"/><circle cx="16" cy="16" r="1.2" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="8" cy="16" r="1.2" fill="currentColor" stroke="none"/><circle cx="16" cy="8" r="1.2" fill="currentColor" stroke="none"/></svg>
+      </button>
+      <button id="reset" title="Reset" aria-label="Reset">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+      </button>
+    </div>
+    <p id="status">Loading…</p>
+  </main>
+  <script>
+    // Unlike index.html (which computes generations in JS), this page holds
+    // no simulation state of its own: every action posts to the Python
+    // server and re-renders whatever LifeGrid computed.
+    let width = 27, height = 27, timer = null, applyingRemoteRule = false;
+    const grid = document.querySelector('#grid'), status = document.querySelector('#status');
+    const ruleSummary = document.querySelector('#rule-summary');
+    const playButton = document.querySelector('#play');
+    const playIcon = playButton.innerHTML;
+    const pauseIcon = '<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>';
+    const controlButtons = [...document.querySelectorAll('#controls button')];
+
+    async function api(path, body) {
+      const response = await fetch(path, body === undefined
+        ? undefined
+        : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      if (!response.ok) throw new Error(`${path} failed: ${response.status}`);
+      return response.json();
+    }
+
+    function buildRuleCheckboxes(rowId, prefix) {
+      const row = document.querySelector(rowId);
+      for (let n = 0; n <= 8; n++) {
+        const label = document.createElement('label');
+        const box = document.createElement('input');
+        box.type = 'checkbox';
+        box.id = `${prefix}-${n}`;
+        box.onchange = onRuleCheckboxChange;
+        label.append(box, document.createTextNode(String(n)));
+        row.appendChild(label);
+      }
+    }
+    async function onRuleCheckboxChange() {
+      if (applyingRemoteRule) return; // don't re-POST while syncing checkboxes from a server response
+      const birth = [...document.querySelectorAll('[id^="birth-"]')].filter(b => b.checked).map(b => +b.id.split('-')[1]);
+      const survival = [...document.querySelectorAll('[id^="survival-"]')].filter(b => b.checked).map(b => +b.id.split('-')[1]);
+      render(await api('/api/rule', { birth, survival }));
+    }
+    buildRuleCheckboxes('#birth-row', 'birth');
+    buildRuleCheckboxes('#survival-row', 'survival');
+
+    function syncRuleCheckboxes(birth, survival) {
+      applyingRemoteRule = true;
+      for (let n = 0; n <= 8; n++) {
+        document.querySelector(`#birth-${n}`).checked = birth.includes(n);
+        document.querySelector(`#survival-${n}`).checked = survival.includes(n);
+      }
+      applyingRemoteRule = false;
+      ruleSummary.textContent = `Current rule: B${birth.join('')}/S${survival.join('')}`;
+    }
+
+    function render(state) {
+      width = state.width; height = state.height;
+      grid.replaceChildren(...state.cells.flatMap((row, y) => row.map((alive, x) => {
+        const cell = document.createElement('button');
+        cell.className = `cell${alive ? ' alive' : ''}`;
+        cell.setAttribute('aria-label', `Column ${x + 1}, row ${y + 1}: ${alive ? 'alive' : 'dead'}`);
+        cell.onclick = async () => { stop(); render(await api('/api/toggle', { column: x, row: y })); };
+        return cell;
+      })));
+      status.textContent = `step: ${state.generation} · living cells: ${state.livingCells}`;
+      syncRuleCheckboxes(state.birth, state.survival);
+    }
+
+    function stop() {
+      clearInterval(timer); timer = null;
+      playButton.innerHTML = playIcon; playButton.title = 'Play'; playButton.setAttribute('aria-label', 'Play');
+    }
+    async function stepForward() { render(await api('/api/step', {})); }
+
+    document.querySelector('#step-forward').onclick = async () => { stop(); await stepForward(); };
+    document.querySelector('#step-back').onclick = async () => { stop(); render(await api('/api/step-back', {})); };
+    playButton.onclick = () => {
+      if (timer) return stop();
+      timer = setInterval(stepForward, 450);
+      playButton.innerHTML = pauseIcon; playButton.title = 'Pause'; playButton.setAttribute('aria-label', 'Pause');
+    };
+    document.querySelector('#random').onclick = async () => { stop(); render(await api('/api/random', {})); };
+    document.querySelector('#reset').onclick = async () => { stop(); render(await api('/api/reset', {})); };
+
+    (async () => {
+      try {
+        render(await fetch('/api/state').then(r => r.json()));
+      } catch (err) {
+        status.textContent = 'Could not reach the Python server. Is it still running?';
+        controlButtons.forEach(b => b.disabled = true);
+        throw err;
+      }
+    })();
+  </script>
+</body>
+</html>
