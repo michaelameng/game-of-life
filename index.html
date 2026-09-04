@@ -15,12 +15,14 @@
     .rule-row span.label { min-width: 2.5rem; text-align: right; color: #e8eef9; font-weight: 600; }
     .rule-row label { display: inline-flex; align-items: center; gap: .2rem; font-size: .85rem; color: #adbad0; }
     #rule-summary { font-variant-numeric: tabular-nums; color: #62d9a4; font-weight: 600; }
-    #grid { display: grid; grid-template-columns: repeat(27, 1fr); gap: 1px; margin: 1.5rem auto; padding: 1px; background: #34425c; border-radius: 8px; }
-    .cell { aspect-ratio: 1; min-width: 0; min-height: 0; padding: 0; border: 0; border-radius: 2px; cursor: pointer; background: #1d2a3e; }
-    .cell.alive { background: #62d9a4; box-shadow: 0 0 6px #62d9a477; }
+    #grid { display: grid; grid-template-columns: repeat(27, 1fr); gap: 0; margin: 1.5rem auto; padding: 0; background: #1d2a3e; border-radius: 8px; overflow: hidden; }
+    /* A thin inset outline draws the grid lines without adding real layout gaps, so they stay hairline-thin at any cell size. */
+    .cell { aspect-ratio: 1; min-width: 0; min-height: 0; padding: 0; border: 0; border-radius: 0; cursor: pointer; background: #1d2a3e; box-shadow: inset 0 0 0 1px #29385180; }
+    .cell.alive { background: #62d9a4; box-shadow: inset 0 0 0 1px #29385180, 0 0 6px #62d9a477; }
     button { margin: .25rem; padding: .6rem 1rem; border: 0; border-radius: 6px; background: #3182ce; color: white; font: inherit; cursor: pointer; }
     button:hover { background: #4299e1; }
-    #controls button { font-size: 1.2rem; line-height: 1; padding: .6rem .9rem; }
+    #controls button { display: inline-flex; align-items: center; justify-content: center; padding: .6rem; }
+    #controls button svg { width: 1.15rem; height: 1.15rem; display: block; }
     #status { min-height: 1.5em; font-variant-numeric: tabular-nums; }
   </style>
 </head>
@@ -36,31 +38,31 @@
     </div>
     <div id="grid" role="grid" aria-label="Cellular automaton grid"></div>
     <div id="controls">
-      <button id="step-back" title="Step back" aria-label="Step back">⏪</button>
-      <button id="play" title="Play" aria-label="Play">▶️</button>
-      <button id="step-forward" title="Step forward" aria-label="Step forward">⏩</button>
-      <button id="random" title="Randomize" aria-label="Randomize">🎲</button>
-      <button id="clear" title="Clear" aria-label="Clear">🗑️</button>
-      <button id="reset" title="Reset" aria-label="Reset">↺</button>
+      <button id="step-back" title="Step back" aria-label="Step back">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5"/></svg>
+      </button>
+      <button id="play" title="Play" aria-label="Play">
+        <svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+      </button>
+      <button id="step-forward" title="Step forward" aria-label="Step forward">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
+      </button>
+      <button id="random" title="Randomize" aria-label="Randomize">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.2" fill="currentColor" stroke="none"/><circle cx="16" cy="16" r="1.2" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="8" cy="16" r="1.2" fill="currentColor" stroke="none"/><circle cx="16" cy="8" r="1.2" fill="currentColor" stroke="none"/></svg>
+      </button>
+      <button id="reset" title="Reset" aria-label="Reset">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+      </button>
     </div>
     <p id="status"></p>
   </main>
   <script>
     // ``cells`` holds the current generation as rows of 0 (dead) and 1 (alive).
     const width = 27, height = 27;
-    // Live-cell coordinates as (column, row), matching src/simulation/life.py's DEFAULT_GRID.
-    const initialAlive = [[2,2],[3,2],[4,2],[2,3],[4,3],[3,4],[5,4],[6,4],[5,5]];
-    function buildGrid(aliveCells) {
-      const rows = Array.from({length: height}, () => Array(width).fill(0));
-      for (const [x, y] of aliveCells) rows[y][x] = 1;
-      return rows;
-    }
-    const original = buildGrid(initialAlive);
     const blank = () => Array.from({length: height}, () => Array(width).fill(0));
     let birthSet = new Set([3]), survivalSet = new Set([2, 6]);
     // History is a pointer-based undo/redo stack: editing while stepped back
     // discards the states ahead of the pointer, since they no longer apply.
-    // The board starts blank; Reset restores the example pattern instead.
     let history = [blank()], genIndex = 0, timer = null;
     let cells = history[0].map(row => [...row]);
     const grid = document.querySelector('#grid'), status = document.querySelector('#status');
@@ -136,16 +138,18 @@
       draw();
     }
     const playButton = document.querySelector('#play');
+    const playIcon = playButton.innerHTML;
+    const pauseIcon = '<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>';
     function stop() {
       clearInterval(timer); timer = null;
-      playButton.textContent = '▶️'; playButton.title = 'Play'; playButton.setAttribute('aria-label', 'Play');
+      playButton.innerHTML = playIcon; playButton.title = 'Play'; playButton.setAttribute('aria-label', 'Play');
     }
     document.querySelector('#step-forward').onclick = stepForward;
     document.querySelector('#step-back').onclick = stepBack;
     playButton.onclick = () => {
       if (timer) return stop();
       timer = setInterval(stepForward, 450);
-      playButton.textContent = '⏸️'; playButton.title = 'Pause'; playButton.setAttribute('aria-label', 'Pause');
+      playButton.innerHTML = pauseIcon; playButton.title = 'Pause'; playButton.setAttribute('aria-label', 'Pause');
     };
     document.querySelector('#random').onclick = () => {
       stop();
@@ -154,15 +158,9 @@
       history = [cells.map(row => [...row])]; genIndex = 0;
       draw();
     };
-    document.querySelector('#clear').onclick = () => {
-      stop();
-      cells = blank();
-      history = [cells.map(row => [...row])]; genIndex = 0;
-      draw();
-    };
     document.querySelector('#reset').onclick = () => {
       stop();
-      cells = original.map(row => [...row]);
+      cells = blank();
       history = [cells.map(row => [...row])]; genIndex = 0;
       draw();
     };

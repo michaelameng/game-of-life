@@ -1,8 +1,5 @@
-# Exclude .DS_Store from commits
+# Exclude .DS_Store
 **/.DS_Store
 
-# Local HTML exports should not be committed.
-/game_of_life.html
-
-# Personal notes are intentionally kept out of this repository.
+# Exclude notes
 /notes/
