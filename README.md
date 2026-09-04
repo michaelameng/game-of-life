@@ -12,14 +12,14 @@ Cells beyond the grid edge are considered dead.
 ## View the simulation
 
 The interactive, standalone page is already included at
-[`docs/index.html`](docs/index.html). Open that file directly in a browser; no
+[`index.html`](index.html). Open that file directly in a browser; no
 Python command or local server is needed.
 
 ### Publish with GitHub Pages
 
 In the GitHub repository, open **Settings → Pages**. Under **Build and
-deployment**, select **Deploy from a branch**, choose `main`, and select the
-`/docs` folder. Save the setting. GitHub will then publish `docs/index.html`
+deployment**, select **Deploy from a branch**, choose `main`, and select
+`/(root)`. Save the setting. GitHub will then publish `index.html`
 as the project website.
 
 The page has Step, Play/Pause, Clear, and Reset controls, and every cell can be
