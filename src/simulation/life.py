@@ -77,10 +77,3 @@ class LifeGrid:
     def as_numbers(self) -> list[list[int]]:
         """Return cells in a JSON-friendly 0 (dead) / 1 (alive) representation."""
         return [[int(alive) for alive in row] for row in self.cells]
-
-
-# This starting pattern makes the initial page interesting without hiding how
-# the rule works; users can replace it by clicking cells in the browser.
-DEFAULT_GRID = LifeGrid.from_alive_cells(
-    [(2, 2), (3, 2), (4, 2), (2, 3), (4, 3), (3, 4), (5, 4), (6, 4), (5, 5)]
-)

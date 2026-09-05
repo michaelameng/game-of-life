@@ -21,16 +21,20 @@
     .cell.alive { background: #62d9a4; box-shadow: inset 0 0 0 1px #4a5f82, 0 0 6px #62d9a477; }
     button { margin: .25rem; padding: .6rem 1rem; border: 0; border-radius: 6px; background: #3182ce; color: white; font: inherit; cursor: pointer; }
     button:hover { background: #4299e1; }
+    button:disabled { opacity: .5; cursor: default; }
     #controls button { display: inline-flex; align-items: center; justify-content: center; padding: .6rem; }
     #controls button svg { width: 1.15rem; height: 1.15rem; display: block; }
     #status { min-height: 1.5em; font-variant-numeric: tabular-nums; }
+    #python-note { font-size: .8rem; color: #6c7f9c; }
   </style>
 </head>
 <body>
   <!-- GitHub Pages serves this root index file as the project-page entry point. -->
   <main>
     <h1>Game of Life Simulation</h1>
+    <p id="python-note">Running <code>src/simulation/life.py</code> and <code>state.py</code> in-browser via <a href="https://pyodide.org" style="color:#62d9a4">Pyodide</a> &mdash; every generation is computed by real Python, not a JavaScript port.</p>
     <p>Click cells to edit. Choose which live-neighbour counts cause birth (B) and survival (S) below.</p>
+    <p><a href="code.html" style="color:#62d9a4">View the Python source &rarr;</a></p>
     <div id="rule-picker">
       <div class="rule-row" id="birth-row"><span class="label">Birth</span></div>
       <div class="rule-row" id="survival-row"><span class="label">Survival</span></div>
@@ -38,133 +42,136 @@
     </div>
     <div id="grid" role="grid" aria-label="Cellular automaton grid"></div>
     <div id="controls">
-      <button id="step-back" title="Step back" aria-label="Step back">
+      <button id="step-back" title="Step back" aria-label="Step back" disabled>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5"/></svg>
       </button>
-      <button id="play" title="Play" aria-label="Play">
+      <button id="play" title="Play" aria-label="Play" disabled>
         <svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>
       </button>
-      <button id="step-forward" title="Step forward" aria-label="Step forward">
+      <button id="step-forward" title="Step forward" aria-label="Step forward" disabled>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
       </button>
-      <button id="random" title="Randomize" aria-label="Randomize">
+      <button id="random" title="Randomize" aria-label="Randomize" disabled>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.2" fill="currentColor" stroke="none"/><circle cx="16" cy="16" r="1.2" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="8" cy="16" r="1.2" fill="currentColor" stroke="none"/><circle cx="16" cy="8" r="1.2" fill="currentColor" stroke="none"/></svg>
       </button>
-      <button id="reset" title="Reset" aria-label="Reset">
+      <button id="reset" title="Reset" aria-label="Reset" disabled>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
       </button>
     </div>
-    <p id="status"></p>
+    <p id="status">Loading Python runtime&hellip;</p>
   </main>
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
   <script>
-    // ``cells`` holds the current generation as rows of 0 (dead) and 1 (alive).
-    const width = 27, height = 27;
-    const blank = () => Array.from({length: height}, () => Array(width).fill(0));
-    let birthSet = new Set([3]), survivalSet = new Set([2, 6]);
-    // History is a pointer-based undo/redo stack: editing while stepped back
-    // discards the states ahead of the pointer, since they no longer apply.
-    let history = [blank()], genIndex = 0, timer = null;
-    let cells = history[0].map(row => [...row]);
+    // This page holds no simulation state of its own. Pyodide loads a real
+    // CPython interpreter compiled to WebAssembly, we load the *actual*
+    // src/simulation/life.py and state.py files into it unmodified, and
+    // every action below calls into that live Python object. GitHub Pages
+    // can host this because it's still just static files being fetched.
     const grid = document.querySelector('#grid'), status = document.querySelector('#status');
     const ruleSummary = document.querySelector('#rule-summary');
+    const playButton = document.querySelector('#play');
+    const playIcon = playButton.innerHTML;
+    const pauseIcon = '<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>';
+    const controlButtons = [...document.querySelectorAll('#controls button')];
+    let timer = null, applyingRemoteRule = false, pyState = null;
 
-    function buildRuleCheckboxes(rowId, set, prefix) {
+    function buildRuleCheckboxes(rowId, prefix) {
       const row = document.querySelector(rowId);
       for (let n = 0; n <= 8; n++) {
         const label = document.createElement('label');
         const box = document.createElement('input');
         box.type = 'checkbox';
-        box.checked = set.has(n);
         box.id = `${prefix}-${n}`;
-        box.onchange = () => { box.checked ? set.add(n) : set.delete(n); updateRuleSummary(); };
+        box.onchange = onRuleCheckboxChange;
         label.append(box, document.createTextNode(String(n)));
         row.appendChild(label);
       }
     }
-    function updateRuleSummary() {
-      const b = [...birthSet].sort((a, b) => a - b).join('');
-      const s = [...survivalSet].sort((a, b) => a - b).join('');
-      ruleSummary.textContent = `Current rule: B${b}/S${s}`;
+    function onRuleCheckboxChange() {
+      if (applyingRemoteRule) return; // don't re-apply while syncing checkboxes from Python's state
+      const birth = [...document.querySelectorAll('[id^="birth-"]')].filter(b => b.checked).map(b => +b.id.split('-')[1]);
+      const survival = [...document.querySelectorAll('[id^="survival-"]')].filter(b => b.checked).map(b => +b.id.split('-')[1]);
+      pyState.set_rule(birth, survival);
+      render(readState());
     }
-    buildRuleCheckboxes('#birth-row', birthSet, 'birth');
-    buildRuleCheckboxes('#survival-row', survivalSet, 'survival');
-    updateRuleSummary();
+    buildRuleCheckboxes('#birth-row', 'birth');
+    buildRuleCheckboxes('#survival-row', 'survival');
 
-    function neighbours(cells, x, y) {
-      let total = 0;
-      // Visit the 3 by 3 square around this cell, excluding the cell itself.
-      // Optional chaining makes rows beyond an edge count as zero/dead.
-      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
-        if (dx || dy) { const row = cells[y + dy]; total += row?.[x + dx] || 0; }
+    function syncRuleCheckboxes(birth, survival) {
+      applyingRemoteRule = true;
+      for (let n = 0; n <= 8; n++) {
+        document.querySelector(`#birth-${n}`).checked = birth.includes(n);
+        document.querySelector(`#survival-${n}`).checked = survival.includes(n);
       }
-      return total;
+      applyingRemoteRule = false;
+      ruleSummary.textContent = `Current rule: B${birth.join('')}/S${survival.join('')}`;
     }
-    function nextGeneration(current) {
-      return current.map((row, y) => row.map((alive, x) => {
-        const n = neighbours(current, x, y);
-        return alive ? +survivalSet.has(n) : +birthSet.has(n);
-      }));
+
+    // pyState.as_json() returns a PyProxy wrapping a Python dict; toJs()
+    // recursively converts it (and the nested lists) into plain JS values.
+    function readState() {
+      return pyState.as_json().toJs({ dict_converter: Object.fromEntries });
     }
-    function draw() {
-      // Rebuild the cells so their colour and accessible label match the grid.
-      grid.replaceChildren(...cells.flatMap((row, y) => row.map((alive, x) => {
+
+    function render(state) {
+      grid.replaceChildren(...state.cells.flatMap((row, y) => row.map((alive, x) => {
         const cell = document.createElement('button');
         cell.className = `cell${alive ? ' alive' : ''}`;
         cell.setAttribute('aria-label', `Column ${x + 1}, row ${y + 1}: ${alive ? 'alive' : 'dead'}`);
-        cell.onclick = () => {
-          cells[y][x] = cells[y][x] ? 0 : 1;
-          history[genIndex] = cells.map(row => [...row]);
-          history.length = genIndex + 1; // editing invalidates any redo states
-          stop(); draw();
-        };
+        cell.onclick = () => { stop(); pyState.toggle(x, y); render(readState()); };
         return cell;
       })));
-      status.textContent = `step: ${genIndex} · living cells: ${cells.flat().reduce((a, b) => a + b, 0)}`;
+      status.textContent = `step: ${state.generation} · living cells: ${state.livingCells}`;
+      syncRuleCheckboxes(state.birth, state.survival);
     }
-    function stepForward() {
-      if (genIndex + 1 < history.length) {
-        genIndex++;
-      } else {
-        history.push(nextGeneration(cells));
-        genIndex++;
-      }
-      cells = history[genIndex].map(row => [...row]);
-      draw();
-    }
-    function stepBack() {
-      if (genIndex === 0) return;
-      genIndex--;
-      cells = history[genIndex].map(row => [...row]);
-      draw();
-    }
-    const playButton = document.querySelector('#play');
-    const playIcon = playButton.innerHTML;
-    const pauseIcon = '<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>';
+
     function stop() {
       clearInterval(timer); timer = null;
       playButton.innerHTML = playIcon; playButton.title = 'Play'; playButton.setAttribute('aria-label', 'Play');
     }
-    document.querySelector('#step-forward').onclick = stepForward;
-    document.querySelector('#step-back').onclick = stepBack;
+    function stepForward() { pyState.step_forward(); render(readState()); }
+
+    document.querySelector('#step-forward').onclick = () => { stop(); stepForward(); };
+    document.querySelector('#step-back').onclick = () => { stop(); pyState.step_back(); render(readState()); };
     playButton.onclick = () => {
       if (timer) return stop();
       timer = setInterval(stepForward, 450);
       playButton.innerHTML = pauseIcon; playButton.title = 'Pause'; playButton.setAttribute('aria-label', 'Pause');
     };
-    document.querySelector('#random').onclick = () => {
-      stop();
-      // Roughly a quarter of the board comes alive, a reasonable starting density for B3/S26-style rules.
-      cells = blank().map(row => row.map(() => Math.random() < 0.25 ? 1 : 0));
-      history = [cells.map(row => [...row])]; genIndex = 0;
-      draw();
-    };
-    document.querySelector('#reset').onclick = () => {
-      stop();
-      cells = blank();
-      history = [cells.map(row => [...row])]; genIndex = 0;
-      draw();
-    };
-    draw();
+    document.querySelector('#random').onclick = () => { stop(); pyState.randomize(); render(readState()); };
+    document.querySelector('#reset').onclick = () => { stop(); pyState.reset(); render(readState()); };
+
+    async function boot() {
+      try {
+        const pyodide = await loadPyodide();
+        // Fetch the real package files and write them into Pyodide's virtual
+        // filesystem under their actual package layout, so life.py's and
+        // state.py's own relative imports (`from .life import ...`) work
+        // unchanged — this runs the repository's files, not a copy of them.
+        const files = ['__init__.py', 'life.py', 'state.py'];
+        const sources = await Promise.all(files.map(name =>
+          fetch(`src/simulation/${name}`).then(r => {
+            if (!r.ok) throw new Error(`${name} failed: ${r.status}`);
+            return r.text();
+          })
+        ));
+        pyodide.FS.mkdirTree('/home/pyodide/simulation');
+        files.forEach((name, i) => pyodide.FS.writeFile(`/home/pyodide/simulation/${name}`, sources[i]));
+        pyodide.runPython(`
+import sys
+sys.path.insert(0, "/home/pyodide")
+from simulation.state import SimulationState
+`);
+        pyState = pyodide.globals.get('SimulationState')();
+        controlButtons.forEach(b => b.disabled = false);
+        render(readState());
+      } catch (err) {
+        status.textContent = 'Could not start the Python runtime. Check your connection and reload.';
+        console.error(err);
+        throw err;
+      }
+    }
+    boot();
   </script>
 </body>
 </html>
