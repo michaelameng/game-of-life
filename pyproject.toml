@@ -1,0 +1,6 @@
+[project]
+name = "game-of-life"
+version = "0.1.0"
+description = "A small, browser-viewable outer-totalistic cellular automaton"
+requires-python = ">=3.9"
+dependencies = []
