@@ -25,16 +25,13 @@
     #controls button { display: inline-flex; align-items: center; justify-content: center; padding: .6rem; }
     #controls button svg { width: 1.15rem; height: 1.15rem; display: block; }
     #status { min-height: 1.5em; font-variant-numeric: tabular-nums; }
-    #python-note { font-size: .8rem; color: #6c7f9c; }
   </style>
 </head>
 <body>
   <!-- GitHub Pages serves this root index file as the project-page entry point. -->
   <main>
     <h1>Game of Life Simulation</h1>
-    <p id="python-note">Running <code>src/simulation/life.py</code> and <code>state.py</code> in-browser via <a href="https://pyodide.org" style="color:#62d9a4">Pyodide</a> &mdash; every generation is computed by real Python, not a JavaScript port.</p>
     <p>Click cells to edit. Choose which live-neighbour counts cause birth (B) and survival (S) below.</p>
-    <p><a href="code.html" style="color:#62d9a4">View the Python source &rarr;</a></p>
     <div id="rule-picker">
       <div class="rule-row" id="birth-row"><span class="label">Birth</span></div>
       <div class="rule-row" id="survival-row"><span class="label">Survival</span></div>
