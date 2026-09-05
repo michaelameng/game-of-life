@@ -1,4 +1,4 @@
-"""Stateful session wrapper around :class:`~src.simulation.life.LifeGrid`.
+"""Stateful session wrapper around :class:`~src.game_of_life.life.LifeGrid`.
 
 This is the one piece of mutable bookkeeping (history, current rule) that
 sits on top of the immutable ``LifeGrid`` model. ``index.html`` calls it

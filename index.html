@@ -61,7 +61,7 @@
   <script>
     // This page holds no simulation state of its own. Pyodide loads a real
     // CPython interpreter compiled to WebAssembly, we load the *actual*
-    // src/simulation/life.py and state.py files into it unmodified, and
+    // src/game_of_life/life.py and state.py files into it unmodified, and
     // every action below calls into that live Python object. GitHub Pages
     // can host this because it's still just static files being fetched.
     const grid = document.querySelector('#grid'), status = document.querySelector('#status');
@@ -147,17 +147,17 @@
         // unchanged — this runs the repository's files, not a copy of them.
         const files = ['__init__.py', 'life.py', 'state.py'];
         const sources = await Promise.all(files.map(name =>
-          fetch(`src/simulation/${name}`).then(r => {
+          fetch(`src/game_of_life/${name}`).then(r => {
             if (!r.ok) throw new Error(`${name} failed: ${r.status}`);
             return r.text();
           })
         ));
-        pyodide.FS.mkdirTree('/home/pyodide/simulation');
-        files.forEach((name, i) => pyodide.FS.writeFile(`/home/pyodide/simulation/${name}`, sources[i]));
+        pyodide.FS.mkdirTree('/home/pyodide/game_of_life');
+        files.forEach((name, i) => pyodide.FS.writeFile(`/home/pyodide/game_of_life/${name}`, sources[i]));
         pyodide.runPython(`
 import sys
 sys.path.insert(0, "/home/pyodide")
-from simulation.state import SimulationState
+from game_of_life.state import SimulationState
 `);
         pyState = pyodide.globals.get('SimulationState')();
         controlButtons.forEach(b => b.disabled = false);
