@@ -33,7 +33,9 @@ def sample_rules(n: int = 100, seed: int | None = None) -> list[tuple]:
     )
     sample = random.Random(seed).sample(rules, n)
     for i, (birth, survival) in enumerate(sample, start=1):
-        print(f"{i:>3}. Birth: {birth!s:<30} Survival: {survival}")
+        birth_digits = "".join(str(n) for n in birth)
+        survival_digits = "".join(str(n) for n in survival)
+        print(f"{i:>3}. B{birth_digits}/S{survival_digits}")
     return sample
 
 
