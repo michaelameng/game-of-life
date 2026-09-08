@@ -24,12 +24,18 @@ def cartesian_product(*iterables) -> list[tuple]:
 def sample_rules(n: int = 100, seed: int | None = None) -> list[tuple]:
     """Randomly samples n rule combinations from the Cartesian product of the power set of all Life birth and survival rules."""
     rules = cartesian_product(
-        power_set([0, 1, 2, 3, 4, 5, 6, 7, 8]),  # The power set of all Life birth rules.
-        power_set([0, 1, 2, 3, 4, 5, 6, 7, 8]),  # The power set of all Life survival rules.
+        power_set(
+            [0, 1, 2, 3, 4, 5, 6, 7, 8]
+        ),  # The power set of all Life birth rules.
+        power_set(
+            [0, 1, 2, 3, 4, 5, 6, 7, 8]
+        ),  # The power set of all Life survival rules.
     )
-    return random.Random(seed).sample(rules, n)
+    sample = random.Random(seed).sample(rules, n)
+    for i, (birth, survival) in enumerate(sample, start=1):
+        print(f"{i:>3}. Birth: {birth!s:<30} Survival: {survival}")
+    return sample
 
 
 if __name__ == "__main__":
-    for i, (birth, survival) in enumerate(sample_rules(), start=1):
-        print(f"{i:>3}. Birth: {birth!s:<30} Survival: {survival}")
+    sample_rules()
