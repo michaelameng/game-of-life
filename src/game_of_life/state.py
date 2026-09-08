@@ -62,7 +62,13 @@ class SimulationState:
         self.history = self.history[: self.gen_index + 1]
         self.history[self.gen_index] = LifeGrid.from_alive_cells(alive)
 
-    def randomize(self, density: float = 0.25) -> None:
+    def randomize(self, density: float | None = None) -> None:
+        # A fixed density clusters the live-cell count tightly around its
+        # expected value (729 cells barely deviate from the binomial mean).
+        # Randomizing the density itself instead spreads results across the
+        # full range, from nearly empty to nearly full boards.
+        if density is None:
+            density = random.random()
         alive = [
             (column, row)
             for row in range(HEIGHT)
