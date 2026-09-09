@@ -178,7 +178,7 @@
         // unchanged — this runs the repository's files, not a copy of them.
         const files = ['__init__.py', 'life.py', 'state.py'];
         const sources = await Promise.all(files.map(name =>
-          fetch(`src/game_of_life/${name}`).then(r => {
+          fetch(`src/game_of_life/${name}`, { cache: 'no-store' }).then(r => {
             if (!r.ok) throw new Error(`${name} failed: ${r.status}`);
             return r.text();
           })
