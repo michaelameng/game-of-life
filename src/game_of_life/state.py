@@ -10,7 +10,14 @@ from __future__ import annotations
 
 import random
 
-from .life import HEIGHT, WIDTH, LifeGrid, _BIRTH_COUNTS, _SURVIVAL_COUNTS
+from .life import (
+    HEIGHT,
+    WIDTH,
+    LifeGrid,
+    _BIRTH_COUNTS,
+    _MUTATION_PROBABILITY,
+    _SURVIVAL_COUNTS,
+)
 
 
 class SimulationState:
@@ -19,6 +26,7 @@ class SimulationState:
     def __init__(self) -> None:
         self.birth_counts = set(_BIRTH_COUNTS)
         self.survival_counts = set(_SURVIVAL_COUNTS)
+        self.mutation_probability = _MUTATION_PROBABILITY
         self.history: list[LifeGrid] = [LifeGrid.from_alive_cells([])]
         self.gen_index = 0
 
@@ -40,7 +48,7 @@ class SimulationState:
         next_grid = self.grid.step(
             birth_counts=frozenset(self.birth_counts),
             survival_counts=frozenset(self.survival_counts),
-        )
+        ).mutate(self.mutation_probability)
         self.history.append(next_grid)
         self.gen_index += 1
 
@@ -82,6 +90,9 @@ class SimulationState:
         self.birth_counts = {n for n in birth if 0 <= n <= 8}
         self.survival_counts = {n for n in survival if 0 <= n <= 8}
 
+    def set_mutation_probability(self, probability: float) -> None:
+        self.mutation_probability = min(1.0, max(0.0, probability))
+
     def as_json(self) -> dict:
         cells = self.grid.as_numbers()
         return {
@@ -90,6 +101,7 @@ class SimulationState:
             "livingCells": sum(sum(row) for row in cells),
             "birth": sorted(self.birth_counts),
             "survival": sorted(self.survival_counts),
+            "mutationProbability": self.mutation_probability,
             "width": WIDTH,
             "height": HEIGHT,
         }

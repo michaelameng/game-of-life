@@ -15,6 +15,9 @@
     .rule-row span.label { min-width: 2.5rem; text-align: right; color: #e8eef9; font-weight: 600; }
     .rule-row label { display: inline-flex; align-items: center; gap: .2rem; font-size: .85rem; color: #adbad0; }
     #rule-summary { font-variant-numeric: tabular-nums; color: #62d9a4; font-weight: 600; }
+    #mutation-row { display: flex; align-items: center; gap: .5rem; }
+    #mutation-row input[type="range"] { width: 12rem; }
+    #mutation-value { min-width: 3rem; font-variant-numeric: tabular-nums; color: #e8eef9; }
     #grid { display: grid; grid-template-columns: repeat(27, 1fr); gap: 0; margin: 1.5rem auto; padding: 0; background: #1d2a3e; border-radius: 8px; overflow: hidden; }
     /* A thin inset outline draws the grid lines without adding real layout gaps, so they stay hairline-thin at any cell size. */
     .cell { aspect-ratio: 1; min-width: 0; min-height: 0; padding: 0; border: 0; border-radius: 0; cursor: pointer; background: #1d2a3e; box-shadow: inset 0 0 0 1px #4a5f82; }
@@ -31,11 +34,16 @@
   <!-- GitHub Pages serves this root index file as the project-page entry point. -->
   <main>
     <h1>Game of Life Simulation</h1>
-    <p>Click cells to edit. Choose which live-neighbour counts cause birth (B) and survival (S) below.</p>
+    <p>Click cells to edit. Choose which live-neighbour counts cause birth (B) and survival (S), and set a mutation chance to randomly flip cells each generation.</p>
     <div id="rule-picker">
+      <div id="rule-summary"></div>
       <div class="rule-row" id="birth-row"><span class="label">Birth</span></div>
       <div class="rule-row" id="survival-row"><span class="label">Survival</span></div>
-      <div id="rule-summary"></div>
+      <div class="rule-row" id="mutation-row">
+        <span class="label">Mutation</span>
+        <input type="range" id="mutation-probability" min="0" max="1" step="0.01" value="0">
+        <span id="mutation-value">0%</span>
+      </div>
     </div>
     <div id="grid" role="grid" aria-label="Cellular automaton grid"></div>
     <div id="controls">
@@ -66,6 +74,8 @@
     // can host this because it's still just static files being fetched.
     const grid = document.querySelector('#grid'), status = document.querySelector('#status');
     const ruleSummary = document.querySelector('#rule-summary');
+    const mutationSlider = document.querySelector('#mutation-probability');
+    const mutationValue = document.querySelector('#mutation-value');
     const playButton = document.querySelector('#play');
     const playIcon = playButton.innerHTML;
     const pauseIcon = '<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>';
@@ -94,6 +104,14 @@
     buildRuleCheckboxes('#birth-row', 'birth');
     buildRuleCheckboxes('#survival-row', 'survival');
 
+    mutationSlider.oninput = () => {
+      if (applyingRemoteRule) return; // don't re-apply while syncing the slider from Python's state
+      const probability = +mutationSlider.value;
+      mutationValue.textContent = `${Math.round(probability * 100)}%`;
+      pyState.set_mutation_probability(probability);
+      render(readState());
+    };
+
     function syncRuleCheckboxes(birth, survival) {
       applyingRemoteRule = true;
       for (let n = 0; n <= 8; n++) {
@@ -101,7 +119,18 @@
         document.querySelector(`#survival-${n}`).checked = survival.includes(n);
       }
       applyingRemoteRule = false;
-      ruleSummary.textContent = `Current rule: B${birth.join('')}/S${survival.join('')}`;
+    }
+
+    function syncMutationSlider(probability) {
+      applyingRemoteRule = true;
+      mutationSlider.value = probability;
+      mutationValue.textContent = `${Math.round(probability * 100)}%`;
+      applyingRemoteRule = false;
+    }
+
+    function updateRuleSummary(birth, survival, mutationProbability) {
+      const mutationPercent = Math.round(mutationProbability * 100);
+      ruleSummary.textContent = `Current rule: B${birth.join('')}/S${survival.join('')} · Mutation: ${mutationPercent}%`;
     }
 
     // pyState.as_json() returns a PyProxy wrapping a Python dict; toJs()
@@ -120,6 +149,8 @@
       })));
       status.textContent = `step: ${state.generation} · living cells: ${state.livingCells}`;
       syncRuleCheckboxes(state.birth, state.survival);
+      syncMutationSlider(state.mutationProbability);
+      updateRuleSummary(state.birth, state.survival, state.mutationProbability);
     }
 
     function stop() {

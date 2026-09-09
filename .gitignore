@@ -1,8 +1,5 @@
-# Exclude .DS_Store
+# macOS
 **/.DS_Store
-
-# Exclude notes
-notes/
 
 # Python
 __pycache__/
