@@ -14,7 +14,6 @@
     .rule-row { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; justify-content: center; }
     .rule-row span.label { min-width: 2.5rem; text-align: right; color: #e8eef9; font-weight: 600; }
     .rule-row label { display: inline-flex; align-items: center; gap: .2rem; font-size: .85rem; color: #adbad0; }
-    #rule-summary { font-variant-numeric: tabular-nums; color: #62d9a4; font-weight: 600; }
     #mutation-row { display: flex; align-items: center; gap: .5rem; }
     #mutation-row input[type="range"] { width: 12rem; }
     #mutation-value { min-width: 3rem; font-variant-numeric: tabular-nums; color: #e8eef9; }
@@ -36,7 +35,6 @@
     <h1>Game of Life Simulation</h1>
     <p>Click cells to edit. Choose which live-neighbour counts cause birth (B) and survival (S), and set a mutation chance to randomly flip cells each generation.</p>
     <div id="rule-picker">
-      <div id="rule-summary"></div>
       <div class="rule-row" id="birth-row"><span class="label">Birth</span></div>
       <div class="rule-row" id="survival-row"><span class="label">Survival</span></div>
       <div class="rule-row" id="mutation-row">
@@ -73,7 +71,6 @@
     // every action below calls into that live Python object. GitHub Pages
     // can host this because it's still just static files being fetched.
     const grid = document.querySelector('#grid'), status = document.querySelector('#status');
-    const ruleSummary = document.querySelector('#rule-summary');
     const mutationSlider = document.querySelector('#mutation-probability');
     const mutationValue = document.querySelector('#mutation-value');
     const playButton = document.querySelector('#play');
@@ -128,11 +125,6 @@
       applyingRemoteRule = false;
     }
 
-    function updateRuleSummary(birth, survival, mutationProbability) {
-      const mutationPercent = Math.round(mutationProbability * 100);
-      ruleSummary.textContent = `Current rule: B${birth.join('')}/S${survival.join('')} · Mutation: ${mutationPercent}%`;
-    }
-
     // pyState.as_json() returns a PyProxy wrapping a Python dict; toJs()
     // recursively converts it (and the nested lists) into plain JS values.
     function readState() {
@@ -150,7 +142,6 @@
       status.textContent = `step: ${state.generation} · living cells: ${state.livingCells}`;
       syncRuleCheckboxes(state.birth, state.survival);
       syncMutationSlider(state.mutationProbability);
-      updateRuleSummary(state.birth, state.survival, state.mutationProbability);
     }
 
     function stop() {
