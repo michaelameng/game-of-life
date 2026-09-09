@@ -8,10 +8,10 @@ from typing import Iterable
 # Coordinates use (column, row), while the nested list is accessed as [row][column].
 WIDTH = 27
 HEIGHT = 27
-RULE = "B3/S26"
+RULE = "B3/S23"
 # Keep the rule in sets so ``neighbours in ...`` reads like the rule definition.
 _BIRTH_COUNTS = frozenset({3})
-_SURVIVAL_COUNTS = frozenset({2, 6})
+_SURVIVAL_COUNTS = frozenset({2, 3})
 
 
 @dataclass(frozen=True)
@@ -57,7 +57,7 @@ class LifeGrid:
     ) -> "LifeGrid":
         """Advance one generation.
 
-        Defaults to the B3/S26 rule, but a caller (such as the local server's
+        Defaults to the B3/S23 rule, but a caller (such as the local server's
         interactive rule picker) can pass different neighbour-count sets to
         play a different outer-totalistic variant without editing this file.
         """
