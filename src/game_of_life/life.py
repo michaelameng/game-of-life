@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import random
 from dataclasses import dataclass
 from typing import Iterable
 
@@ -12,6 +13,9 @@ RULE = "B3/S23"
 # Keep the rule in sets so ``neighbours in ...`` reads like the rule definition.
 _BIRTH_COUNTS = frozenset({3})
 _SURVIVAL_COUNTS = frozenset({2, 3})
+# Chance that any single cell flips during ``mutate``: 0 leaves the grid
+# untouched, 1 flips every cell.
+_MUTATION_PROBABILITY = 0.0
 
 
 @dataclass(frozen=True)
@@ -72,6 +76,21 @@ class LifeGrid:
                     next_alive.append((column, row))
         # Build a new grid only after every decision used the old grid. This is
         # essential: all cells in one generation change simultaneously.
+        return LifeGrid.from_alive_cells(next_alive)
+
+    def mutate(self, probability: float = _MUTATION_PROBABILITY) -> "LifeGrid":
+        """Randomly flip cells independently of the step rules.
+
+        Each cell flips with the given ``probability``: 0 leaves every cell
+        as-is, 1 flips every cell, and values in between flip roughly that
+        fraction of cells (on cells turning off, off cells turning on).
+        """
+        next_alive = [
+            (column, row)
+            for row in range(HEIGHT)
+            for column in range(WIDTH)
+            if self.cells[row][column] != (random.random() < probability)
+        ]
         return LifeGrid.from_alive_cells(next_alive)
 
     def as_numbers(self) -> list[list[int]]:
